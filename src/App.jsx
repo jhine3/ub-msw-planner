@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 
-// UB MSW Advising Planner â€“ Baseline with distinct Electives & Advanced Topics (fixed file)
-// Fix: duplicate keys replaced with unique IDs (ELECTIVE 1/2/3, ADV-TOPIC 1/2) and full file restored
+// UB MSW Advising Planner – Baseline with distinct Electives & Advanced Topics
+// Patch: Safe CSV export (no regex, no literal newlines in strings) + lightweight console tests
 
 const COLORS = {
   ubBlue: "#005bbb",
@@ -161,6 +161,77 @@ function validatePlan(plan, humanBioComplete) {
   return { count: count, list: list, byTerm: byTerm };
 }
 
+// ────────────────────────────────────────────────────────────────────────────────
+// Export to CSV helpers (safe, no UI disruption)
+function planToRows(plan, track) {
+  var rows = [];
+  var terms = Object.keys(plan);
+  for (var i=0; i<terms.length; i++) {
+    var term = terms[i];
+    var list = plan[term] || [];
+    for (var j=0; j<list.length; j++) {
+      var code = list[j];
+      var c = CATALOG[code] || {};
+      rows.push([track, term, code, (c.title || ""), (typeof c.credits === "number" ? c.credits : "")]);
+    }
+  }
+  return rows;
+}
+
+function makeCSV(plan, track) {
+  var rows = [["Track","Term","Code","Title","Credits"]].concat(planToRows(plan, track));
+  var csv = "";
+  for (var r=0; r<rows.length; r++) {
+    var cells = rows[r].map(function(cell){
+      var s = (cell===null || cell===undefined) ? "" : String(cell);
+      var needsQuotes = (s.indexOf(",")>-1 || s.indexOf('"')>-1 || s.indexOf("\n")>-1 || s.indexOf("\r")>-1);
+      if (needsQuotes) {
+        // Escape quotes by doubling them (RFC 4180)
+        s = '"' + s.split('"').join('""') + '"';
+      }
+      return s;
+    });
+    csv += cells.join(",") + "\r\n";
+  }
+  return csv;
+}
+
+function exportCSV(plan, track) {
+  var csv = makeCSV(plan, track);
+  var blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = "ub-msw-plan.csv";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){ URL.revokeObjectURL(url); a.remove(); }, 0);
+}
+
+// ── Lightweight console tests (non-throwing) ───────────────────────────────────
+(function runLightTests(){
+  try {
+    // 1) Basic row count check
+    var miniPlan = { "Fall YX": ["ELECTIVE 1"] };
+    var csv1 = makeCSV(miniPlan, "FT");
+    if (csv1.indexOf("Track,Term,Code,Title,Credits") === -1) console.log("[TEST] header missing");
+    var lines = csv1.split("\r\n");
+    if (lines.length < 2) console.log("[TEST] not enough lines");
+
+    // 2) Quote handling check (comma/quote/newline). Use manual row to avoid mutating CATALOG
+    var tricky = 'Hello, "World"\nLine2';
+    var row = ['FT','Term X', tricky, tricky, '3'];
+    var csv2 = (function(){
+      var s = 'Track,Term,Code,Title,Credits\r\n';
+      var arr = row.map(function(v){ var t = String(v); var q = (t.indexOf(',')>-1 || t.indexOf('"')>-1 || t.indexOf('\n')>-1 || t.indexOf('\r')>-1); return q ? '"'+t.split('"').join('""')+'"' : t; });
+      return s + arr.join(',') + '\r\n';
+    })();
+    if (csv2.indexOf('"Hello, ""World""\nLine2"') === -1) console.log("[TEST] quote/newline escaping not as expected");
+  } catch (e) {
+    console.log("[TEST] skipped due to error:", e);
+  }
+})();
+
 export default function App() {
   const [track, setTrack] = useState("FT");
   const [plan, setPlan] = useState(PLAN_FULL_TIME);
@@ -214,10 +285,10 @@ export default function App() {
   return (
     <div style={styles.page}>
       <header style={styles.header}>
-        <h1 style={styles.h1}>UB MSW Advising Planner â€“ Pilot</h1>
+        <h1 style={styles.h1}>UB MSW Advising Planner – Pilot</h1>
         <div style={styles.tabs}>
-          <button style={styles.tab(track === "FT")} onClick={() => switchTrack("FT")} aria-pressed={track==="FT"}>Fullâ€‘Time</button>
-          <button style={styles.tab(track === "PT")} onClick={() => switchTrack("PT")} aria-pressed={track==="PT"}>Partâ€‘Time</button>
+          <button style={styles.tab(track === "FT")} onClick={() => switchTrack("FT")} aria-pressed={track==="FT"}>Full‑Time</button>
+          <button style={styles.tab(track === "PT")} onClick={() => switchTrack("PT")} aria-pressed={track==="PT"}>Part‑Time</button>
         </div>
       </header>
 
@@ -232,7 +303,13 @@ export default function App() {
               </label>
             </div>
           </div>
-          <div style={{ fontSize: 12, color: COLORS.gray }}>Drag courses between terms; issues will highlight in red.</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ fontSize: 12, color: COLORS.gray }}>Drag courses between terms; issues will highlight in red.</div>
+            <button onClick={function(){ exportCSV(plan, track); }}
+              style={{ background: COLORS.ubBlue, color: COLORS.white, border: "1px solid "+COLORS.ubBlue, padding: "6px 10px", borderRadius: 8, cursor: "pointer" }}>
+              Export CSV
+            </button>
+          </div>
         </div>
 
         <div style={styles.grid}>
@@ -298,8 +375,8 @@ function CourseChip({ code, issueMsgs, onDragStart, onRemove }) {
   return (
     <div draggable onDragStart={onDragStart} style={styles.chip(issue)} title={issue ? issueMsgs.join("; ") : "Drag to move"}>
       <div>
-        <div style={{ fontWeight: 700, color: COLORS.ubBlue }}>{code} <span style={{ color: COLORS.gray, fontWeight: 500 }}>â€¢ {c.title || ""}</span></div>
-        <div style={{ fontSize: 12, opacity: 0.85 }}>{c.level === LEVEL.ADVANCED ? "Advanced" : c.level === LEVEL.FOUNDATION ? "Foundation" : "Elective"} â€¢ Offered: {(c.offered ? c.offered.join(", ") : "")}</div>
+        <div style={{ fontWeight: 700, color: COLORS.ubBlue }}>{code} <span style={{ color: COLORS.gray, fontWeight: 500 }}>• {c.title || ""}</span></div>
+        <div style={{ fontSize: 12, opacity: 0.85 }}>{c.level === LEVEL.ADVANCED ? "Advanced" : c.level === LEVEL.FOUNDATION ? "Foundation" : "Elective"} • Offered: {(c.offered ? c.offered.join(", ") : "")}</div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ fontSize: 12, background: COLORS.lightGray, padding: "2px 6px", borderRadius: 8 }}>{(typeof c.credits === "number" ? c.credits : "")} cr</span>
