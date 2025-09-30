@@ -1,8 +1,7 @@
 import React, { useMemo, useState } from "react";
 
-// UB MSW Advising Planner – Known-Good Baseline
-// Features: FT/PT tabs, UB colors, drag & drop, prereq/coreq checks, advanced-year gate
-// NO: year-row layout, credit totals, print view, self-tests
+// UB MSW Advising Planner – Baseline with distinct Electives & Advanced Topics (fixed file)
+// Fix: duplicate keys replaced with unique IDs (ELECTIVE 1/2/3, ADV-TOPIC 1/2) and full file restored
 
 const COLORS = {
   ubBlue: "#005bbb",
@@ -20,7 +19,7 @@ const styles = {
   container: { padding: 16, maxWidth: 1400, margin: "0 auto" },
   tabs: { display: "flex", gap: 8, marginBottom: 12 },
   tab: function(active){ return { padding: "8px 12px", borderRadius: 9999, background: active ? COLORS.white : "transparent", color: active ? COLORS.ubBlue : COLORS.white, border: "1px solid "+COLORS.white , cursor: "pointer", fontWeight: 600 }; },
-  grid: { display: "grid", gap: 12, gridTemplateColumns: "repeat(4, minmax(0, 1fr))" },
+  grid: { display: "grid", gap: 12, gridTemplateColumns: "repeat(3, minmax(0, 1fr))" },
   col: { background: COLORS.white, borderRadius: 16, border: "1px solid "+COLORS.lightGray, padding: 12, minHeight: 260, display: "flex", flexDirection: "column" },
   colHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, fontWeight: 600, color: COLORS.ubBlue },
   chip: function(issue){ return { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: 10, borderRadius: 12, border: "1px solid "+(issue ? COLORS.errorBorder : COLORS.lightGray), background: issue ? COLORS.errorBg : COLORS.white, boxShadow: "0 1px 2px rgba(0,0,0,0.06)", cursor: "grab" }; },
@@ -38,34 +37,37 @@ const FOUNDATION_LIST = [
 ];
 
 const CATALOG = {
+  // Foundation
   "SW 500": { title: "Social Welfare History", credits: 3, offered: ["Fall"], prereqs: [], coreqs: [], level: LEVEL.FOUNDATION },
   "SW 505": { title: "Theories of Human Behavior and Development", credits: 3, offered: ["Fall"], prereqs: [], coreqs: [], level: LEVEL.FOUNDATION },
   "SW 510": { title: "Introduction to Social Work Research and Evaluation", credits: 3, offered: ["Fall","Spring"], prereqs: [], coreqs: [], level: LEVEL.FOUNDATION },
   "SW 520": { title: "Interventions I", credits: 3, offered: ["Fall"], prereqs: [], coreqs: ["SW 550","SW 555"], level: LEVEL.FOUNDATION },
   "SW 550": { title: "Field Instruction I", credits: 3, offered: ["Fall"], prereqs: [], coreqs: ["SW 520","SW 555"], level: LEVEL.FOUNDATION },
   "SW 555": { title: "Field Seminar (Part 1)", credits: 0.5, offered: ["Fall"], prereqs: [], coreqs: ["SW 520","SW 550"], level: LEVEL.FOUNDATION },
-
   "SW 502": { title: "Social Welfare Policy", credits: 3, offered: ["Spring"], prereqs: [], coreqs: [], level: LEVEL.FOUNDATION },
   "SW 503": { title: "Diversity and Oppression", credits: 3, offered: ["Spring","Summer"], prereqs: [], coreqs: [], level: LEVEL.FOUNDATION },
   "SW 506": { title: "Theories of Organizational Behavior and Development", credits: 3, offered: ["Spring","Summer"], prereqs: [], coreqs: [], level: LEVEL.FOUNDATION },
   "SW 521": { title: "Interventions II", credits: 3, offered: ["Spring"], prereqs: ["SW 505","SW 520","SW 550"], coreqs: ["SW 551","SW 555B"], level: LEVEL.FOUNDATION },
   "SW 551": { title: "Field Instruction II", credits: 4, offered: ["Spring"], prereqs: ["SW 505","SW 520","SW 550"], coreqs: ["SW 521","SW 555B"], level: LEVEL.FOUNDATION },
   "SW 555B": { title: "Field Seminar (Part 2)", credits: 0.5, offered: ["Spring"], prereqs: ["SW 555"], coreqs: ["SW 521","SW 551"], level: LEVEL.FOUNDATION },
-
+  // Advanced + Electives
   "SW 542": { title: "Perspectives on Trauma and Human Rights", credits: 3, offered: ["Fall"], prereqs: FOUNDATION_LIST.slice(), coreqs: [], level: LEVEL.ADVANCED },
   "SW 552": { title: "Field Instruction III", credits: 4, offered: ["Fall","Spring"], prereqs: FOUNDATION_LIST.slice(), coreqs: [], level: LEVEL.ADVANCED },
   "SW 553": { title: "Field Instruction IV", credits: 3, offered: ["Spring","Summer"], prereqs: ["SW 552"].concat(FOUNDATION_LIST), coreqs: [], level: LEVEL.ADVANCED },
-  "ADV-INTERVENTIONS": { title: "Advanced Interventions (choose designated course)", credits: 3, offered: ["Fall","Summer"], prereqs: FOUNDATION_LIST.slice(), coreqs: [], level: LEVEL.ADVANCED },
-  "ADV-TOPIC": { title: "Advanced Topics Course", credits: 3, offered: ["Fall","Spring"], prereqs: FOUNDATION_LIST.slice(), coreqs: [], level: LEVEL.ADVANCED },
-  "ELECTIVE": { title: "Elective Course", credits: 3, offered: ["Fall","Spring","Summer"], prereqs: [], coreqs: [], level: LEVEL.ELECTIVE },
+  "ADV-INTERVENTIONS": { title: "Advanced Interventions", credits: 3, offered: ["Fall","Summer"], prereqs: FOUNDATION_LIST.slice(), coreqs: [], level: LEVEL.ADVANCED },
+  "ADV-TOPIC 1": { title: "Advanced Topics Course", credits: 3, offered: ["Fall","Spring"], prereqs: FOUNDATION_LIST.slice(), coreqs: [], level: LEVEL.ADVANCED },
+  "ADV-TOPIC 2": { title: "Advanced Topics Course", credits: 3, offered: ["Fall","Spring"], prereqs: FOUNDATION_LIST.slice(), coreqs: [], level: LEVEL.ADVANCED },
+  "ELECTIVE 1": { title: "Elective Course", credits: 3, offered: ["Fall","Spring","Summer"], prereqs: [], coreqs: [], level: LEVEL.ELECTIVE },
+  "ELECTIVE 2": { title: "Elective Course", credits: 3, offered: ["Fall","Spring","Summer"], prereqs: [], coreqs: [], level: LEVEL.ELECTIVE },
+  "ELECTIVE 3": { title: "Elective Course", credits: 3, offered: ["Fall","Spring","Summer"], prereqs: [], coreqs: [], level: LEVEL.ELECTIVE },
 };
 
 const PLAN_FULL_TIME = {
   "Fall Y1": ["SW 500","SW 505","SW 510","SW 520","SW 550","SW 555"],
   "Spring Y1": ["SW 502","SW 503","SW 506","SW 521","SW 551","SW 555B"],
   "Summer Y1": [],
-  "Fall Y2": ["SW 542","SW 552","ADV-INTERVENTIONS","ADV-TOPIC"],
-  "Spring Y2": ["ELECTIVE","ELECTIVE","ELECTIVE","SW 553","ADV-TOPIC"],
+  "Fall Y2": ["SW 542","SW 552","ADV-INTERVENTIONS","ADV-TOPIC 1"],
+  "Spring Y2": ["ELECTIVE 1","ELECTIVE 2","ELECTIVE 3","SW 553","ADV-TOPIC 2"],
   "Summer Y2": [],
   "Fall Y3": [],
   "Spring Y3": [],
@@ -75,13 +77,13 @@ const PLAN_FULL_TIME = {
 const PLAN_PART_TIME = {
   "Fall Y1": ["SW 500","SW 505"],
   "Spring Y1": ["SW 502","SW 510"],
-  "Summer Y1": ["SW 503","SW 506","ELECTIVE"],
+  "Summer Y1": ["SW 503","SW 506","ELECTIVE 1"],
   "Fall Y2": ["SW 520","SW 550","SW 555"],
   "Spring Y2": ["SW 521","SW 551","SW 555B"],
-  "Summer Y2": ["ADV-INTERVENTIONS","ELECTIVE"],
-  "Fall Y3": ["SW 542","ADV-TOPIC"],
-  "Spring Y3": ["SW 552","ADV-TOPIC"],
-  "Summer Y3": ["SW 553","ELECTIVE"],
+  "Summer Y2": ["ADV-INTERVENTIONS","ELECTIVE 2"],
+  "Fall Y3": ["SW 542","ADV-TOPIC 1"],
+  "Spring Y3": ["SW 552","ADV-TOPIC 2"],
+  "Summer Y3": ["SW 553","ELECTIVE 3"],
   "Fall Y4": [],
   "Spring Y4": [],
   "Summer Y4": [],
@@ -160,7 +162,7 @@ function validatePlan(plan, humanBioComplete) {
 }
 
 export default function App() {
-  const [track, setTrack] = useState("FT"); // FT or PT
+  const [track, setTrack] = useState("FT");
   const [plan, setPlan] = useState(PLAN_FULL_TIME);
   const [drag, setDrag] = useState(null);
   const [humanBioComplete, setHumanBioComplete] = useState(false);
@@ -203,8 +205,9 @@ export default function App() {
     });
   }
 
+  // Unplaced required courses (compat-friendly)
   var __all = [];
-  for (var __k in plan) { if (Object.prototype.hasOwnProperty.call(plan, __k)) { __all = __all.concat(plan[__k]); } }
+  for (var __k in plan) { if (plan.hasOwnProperty(__k)) { __all = __all.concat(plan[__k]); } }
   const placed = new Set(__all);
   const unplaced = Object.keys(CATALOG).filter(function(c){ return !placed.has(c) && CATALOG[c].level !== LEVEL.ELECTIVE; });
 
@@ -256,7 +259,7 @@ export default function App() {
           <section style={styles.catalog}>
             <h3 style={{ marginBottom: 8, color: COLORS.ubBlue }}>Catalog (unplaced required courses)</h3>
             {unplaced.length === 0 ? (
-              <div style={{ fontSize: 14 }}>All required courses are placed. Use generic "Elective" and advanced placeholders as needed.</div>
+              <div style={{ fontSize: 14 }}>All required courses are placed. Use Electives and Advanced placeholders as needed.</div>
             ) : (
               <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
                 {unplaced.map(function(code){
