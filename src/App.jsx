@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 
-// UB MSW Advising Planner – Baseline with distinct Electives & Advanced Topics (fixed file)
+// UB MSW Advising Planner â€“ Baseline with distinct Electives & Advanced Topics (fixed file)
 // Fix: duplicate keys replaced with unique IDs (ELECTIVE 1/2/3, ADV-TOPIC 1/2) and full file restored
 
 const COLORS = {
@@ -214,10 +214,10 @@ export default function App() {
   return (
     <div style={styles.page}>
       <header style={styles.header}>
-        <h1 style={styles.h1}>UB MSW Advising Planner – Pilot</h1>
+        <h1 style={styles.h1}>UB MSW Advising Planner â€“ Pilot</h1>
         <div style={styles.tabs}>
-          <button style={styles.tab(track === "FT")} onClick={() => switchTrack("FT")} aria-pressed={track==="FT"}>Full‑Time</button>
-          <button style={styles.tab(track === "PT")} onClick={() => switchTrack("PT")} aria-pressed={track==="PT"}>Part‑Time</button>
+          <button style={styles.tab(track === "FT")} onClick={() => switchTrack("FT")} aria-pressed={track==="FT"}>Fullâ€‘Time</button>
+          <button style={styles.tab(track === "PT")} onClick={() => switchTrack("PT")} aria-pressed={track==="PT"}>Partâ€‘Time</button>
         </div>
       </header>
 
@@ -298,8 +298,8 @@ function CourseChip({ code, issueMsgs, onDragStart, onRemove }) {
   return (
     <div draggable onDragStart={onDragStart} style={styles.chip(issue)} title={issue ? issueMsgs.join("; ") : "Drag to move"}>
       <div>
-        <div style={{ fontWeight: 700, color: COLORS.ubBlue }}>{code} <span style={{ color: COLORS.gray, fontWeight: 500 }}>• {c.title || ""}</span></div>
-        <div style={{ fontSize: 12, opacity: 0.85 }}>{c.level === LEVEL.ADVANCED ? "Advanced" : c.level === LEVEL.FOUNDATION ? "Foundation" : "Elective"} • Offered: {(c.offered ? c.offered.join(", ") : "")}</div>
+        <div style={{ fontWeight: 700, color: COLORS.ubBlue }}>{code} <span style={{ color: COLORS.gray, fontWeight: 500 }}>â€¢ {c.title || ""}</span></div>
+        <div style={{ fontSize: 12, opacity: 0.85 }}>{c.level === LEVEL.ADVANCED ? "Advanced" : c.level === LEVEL.FOUNDATION ? "Foundation" : "Elective"} â€¢ Offered: {(c.offered ? c.offered.join(", ") : "")}</div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ fontSize: 12, background: COLORS.lightGray, padding: "2px 6px", borderRadius: 8 }}>{(typeof c.credits === "number" ? c.credits : "")} cr</span>
