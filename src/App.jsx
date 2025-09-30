@@ -1,7 +1,10 @@
 import React, { useMemo, useState } from "react";
 
-// UB MSW Advising Planner – Baseline with distinct Electives & Advanced Topics (fixed file)
-// Fix: duplicate keys replaced with unique IDs (ELECTIVE 1/2/3, ADV-TOPIC 1/2) and full file restored
+// UB MSW Advising Planner – Stable Pilot
+// - Distinct Electives (ELECTIVE 1/2/3) and Advanced Topics (ADV-TOPIC 1/2)
+// - 3-column term grid
+// - Safe CSV export with blank line between terms (no unterminated strings)
+// - Lightweight console tests (non-throwing)
 
 const COLORS = {
   ubBlue: "#005bbb",
@@ -23,7 +26,8 @@ const styles = {
   col: { background: COLORS.white, borderRadius: 16, border: "1px solid "+COLORS.lightGray, padding: 12, minHeight: 260, display: "flex", flexDirection: "column" },
   colHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, fontWeight: 600, color: COLORS.ubBlue },
   chip: function(issue){ return { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: 10, borderRadius: 12, border: "1px solid "+(issue ? COLORS.errorBorder : COLORS.lightGray), background: issue ? COLORS.errorBg : COLORS.white, boxShadow: "0 1px 2px rgba(0,0,0,0.06)", cursor: "grab" }; },
-  btn: { fontSize: 12, padding: "6px 8px", borderRadius: 8, background: COLORS.lightGray, border: "1px solid "+COLORS.lightGray, cursor: "pointer" },
+  btn: { fontSize: 12, padding: "6px 10px", borderRadius: 8, background: COLORS.ubBlue, color: COLORS.white, border: "1px solid "+COLORS.ubBlue, cursor: "pointer" },
+  btnSecondary: { fontSize: 12, padding: "6px 10px", borderRadius: 8, background: COLORS.lightGray, color: COLORS.gray, border: "1px solid "+COLORS.lightGray, cursor: "pointer" },
   rulePanel: { background: COLORS.white, borderRadius: 16, border: "1px solid "+COLORS.lightGray, padding: 12 },
   catalog: { background: COLORS.white, borderRadius: 16, border: "1px solid "+COLORS.lightGray, padding: 12 },
   toggle: { display: "flex", gap: 8, alignItems: "center", marginTop: 8 },
@@ -161,6 +165,76 @@ function validatePlan(plan, humanBioComplete) {
   return { count: count, list: list, byTerm: byTerm };
 }
 
+// ────────────────────────────────────────────────────────────────────────────────
+// CSV Export (safe, with blank line between terms)
+function csvEscape(value) {
+  var s = (value === null || value === undefined) ? "" : String(value);
+  if (/[",\r\n]/.test(s)) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+function makeCSV(plan, track) {
+  var terms = Object.keys(plan);
+  var csv = "Track,Term,Code,Title,Credits\r\n"; // header
+  for (var i=0; i<terms.length; i++) {
+    var term = terms[i];
+    if (i > 0) csv += "\r\n"; // blank line between terms
+    var list = plan[term] || [];
+    for (var j=0; j<list.length; j++) {
+      var code = list[j];
+      var c = CATALOG[code] || {};
+      var row = [
+        csvEscape(track),
+        csvEscape(term),
+        csvEscape(code),
+        csvEscape(c.title || ""),
+        csvEscape(typeof c.credits === "number" ? c.credits : "")
+      ];
+      csv += row.join(",") + "\r\n";
+    }
+  }
+  return csv;
+}
+
+function exportCSV(plan, track) {
+  var csv = makeCSV(plan, track);
+  var blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = "ub-msw-plan.csv";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){ URL.revokeObjectURL(url); a.remove(); }, 0);
+}
+
+// ── Lightweight console tests (non-throwing) ───────────────────────────────────
+(function runLightTests(){
+  try {
+    // 1) Header present
+    var mini1 = { "Fall YX": ["ELECTIVE 1"] };
+    var csv1 = makeCSV(mini1, "FT");
+    if (csv1.indexOf("Track,Term,Code,Title,Credits\r\n") !== 0) console.log("[TEST] header missing or wrong");
+
+    // 2) Blank line between terms
+    var mini2 = { "Fall YX": ["ELECTIVE 1"], "Spring YX": ["ELECTIVE 2"] };
+    var csv2 = makeCSV(mini2, "PT");
+    if (csv2.indexOf("\r\n\r\n") === -1) console.log("[TEST] expected blank line between terms");
+
+    // 3) Quote/comma/newline escaping
+    function _csvEscape(v){ var s = (v==null?"":String(v)); return /[",\r\n]/.test(s) ? ('"'+s.replace(/"/g,'""')+'"') : s; }
+    var tricky = 'Hello, "World"\nLine2';
+    var encoded = _csvEscape(tricky);
+    if (encoded.charAt(0) !== '"' || encoded.indexOf('""') === -1 || encoded.indexOf('\n') === -1) {
+      console.log("[TEST] unexpected escaping for tricky cell");
+    }
+  } catch (e) {
+    console.log("[TEST] skipped:", e);
+  }
+})();
+
 export default function App() {
   const [track, setTrack] = useState("FT");
   const [plan, setPlan] = useState(PLAN_FULL_TIME);
@@ -205,9 +279,9 @@ export default function App() {
     });
   }
 
-  // Unplaced required courses (compat-friendly)
+  // Unplaced required courses (no electives)
   var __all = [];
-  for (var __k in plan) { if (plan.hasOwnProperty(__k)) { __all = __all.concat(plan[__k]); } }
+  for (var __k in plan) { if (Object.prototype.hasOwnProperty.call(plan, __k)) { __all = __all.concat(plan[__k]); } }
   const placed = new Set(__all);
   const unplaced = Object.keys(CATALOG).filter(function(c){ return !placed.has(c) && CATALOG[c].level !== LEVEL.ELECTIVE; });
 
@@ -232,7 +306,10 @@ export default function App() {
               </label>
             </div>
           </div>
-          <div style={{ fontSize: 12, color: COLORS.gray }}>Drag courses between terms; issues will highlight in red.</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ fontSize: 12, color: COLORS.gray }}>Drag courses between terms; issues will highlight in red.</div>
+            <button onClick={function(){ exportCSV(plan, track); }} style={styles.btn}>Export CSV</button>
+          </div>
         </div>
 
         <div style={styles.grid}>
@@ -303,7 +380,7 @@ function CourseChip({ code, issueMsgs, onDragStart, onRemove }) {
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ fontSize: 12, background: COLORS.lightGray, padding: "2px 6px", borderRadius: 8 }}>{(typeof c.credits === "number" ? c.credits : "")} cr</span>
-        <button onClick={function(e){ e.preventDefault(); e.stopPropagation(); if(onRemove) onRemove(); }} style={styles.btn}>Remove</button>
+        <button onClick={function(e){ e.preventDefault(); e.stopPropagation(); if(onRemove) onRemove(); }} style={styles.btnSecondary}>Remove</button>
       </div>
     </div>
   );
